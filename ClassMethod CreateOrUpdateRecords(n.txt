@@ -1,0 +1,29 @@
+ClassMethod CreateOrUpdateRecords(numRecords As %Integer) As %Status
+{
+    #dim stat As %Status = $$$OK
+    #dim obj As FLC.Data.AllFields
+    #dim index As %Integer
+    
+    // Loop through the specified number of records
+    for index = 1:1:numRecords {
+        // Create or update a new record
+        set obj = ##class(AllFields).%New()
+        
+        // Set attributes for the record
+        set obj.TextSV = index
+        set obj.Datum = $ZDATE($HOROLOG + (index * 30), 8)
+        set obj.DezimalSV = index * 13
+        set obj.ZeitSV = $ZTIME($HOROLOG - (index * 60), 3)
+        set obj.SystembenutzerSV = $USERNAME
+        set obj.NummerSV = index + 150
+        set obj.ZeitstempelSV = $ZTIMESTAMP + (index * 1000)
+        
+        // Add current timestamp to TextMV property
+        do obj.TextMV.Insert($ZTIMESTAMP)
+        
+        // Save the record
+        set stat = obj.%Save()
+    }
+    
+    quit stat
+}

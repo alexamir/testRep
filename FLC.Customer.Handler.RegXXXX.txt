@@ -1,0 +1,115 @@
+/// FLC.Customer.Handler.RegXXXX
+/// Handles customer registration data and creates subordinate records based on registration years.
+Class FLC.Customer.Handler.RegXXXX Extends FLC.Handler.Base.CreateChildrenBase
+{
+
+    /// Implementation of onAfterFILEROSave event
+    /// This method is triggered after a Filero object is saved.
+    ClassMethod onAfterFILEROSave(obj As FLC.Data.Gp) As %Status
+    {
+        #dim stat as Filero.DataType.Status = $$$OK
+        #dim className as Filero.DataType.String = obj.#CLASSDEF
+        
+        // Check if the class name falls within the specified range of registration years
+        if (((className = "Reg2018") || (className = "Reg2019") || (className = "Reg2020") || (className = "Reg2021")) || 
+            ((className = "Reg2022") || (className = "Reg2023") || (className = "Reg2024")))
+        {
+            // Call CreateYearRegister method from FLC.Customer.Handler.RegXXXX.cls
+            set stat = ##class(FLC.Customer.Handler.RegXXXX).CreateYearRegister(obj)
+        }
+        
+        Quit stat
+    }
+
+    /// Creates subordinate records for different registration years based on the class name of the object.
+    /// @param obj The object representing a registration year.
+    /// @return %Status indicating the success or failure of the method execution.
+    ClassMethod CreateYearRegister(obj As Filero.Builder.UserObject) As %Status
+    {
+        #dim stat as Filero.DataType.Status = $$$OK
+        #dim statTemp as Filero.DataType.Status = $$$OK
+        #dim className as Filero.DataType.String = obj.#CLASSDEF
+        
+        // Create child objects if not existing
+        // ClassMethod CreateSubordinateRecords(obj As Filero.Builder.UserObject) As %Status...  
+        // Depending on the class name and year, create the necessary subordinate records
+        
+        // For Reg2022 and onwards
+        if ((className= "Reg2022") ||(className = "Reg2023") || (className= "Reg2024"))
+        {
+            // Create subordinate records for OrdnerArg, OrdnerErg, OrdnerBuha, and Ordner
+            set subStat = ..CreateFolderType(obj, "OrdnerArg")
+            Quit:$$$ISERR(subStat) subStat
+            
+            set subStat = ..CreateFolderType(obj, "OrdnerErg")
+            Quit:$$$ISERR(subStat) subStat
+            
+            set subStat = ..CreateFolderType(obj, "OrdnerBuha", 4992000)
+            Quit:$$$ISERR(subStat) subStat
+            
+            set subStat = ..CreateFolderType(obj, "Ordner", 4864000)
+            Quit:$$$ISERR(subStat) subStat
+        }
+        // For Reg2020 and Reg2021
+        if ((className="Reg2018") || (className="Reg2019") ||(className= "Reg2020") || (className="Reg2021"))
+        {
+            // Create subordinate records for OrdnerArg, OrdnerErg, and OrdnerBuha
+            set subStat = ..CreateFolderType(obj, "OrdnerArg")
+            Quit:$$$ISERR(subStat) subStat
+            
+            set subStat = ..CreateFolderType(obj, "OrdnerErg")
+            Quit:$$$ISERR(subStat) subStat
+            
+            set subStat = ..CreateFolderType(obj, "OrdnerBuha", "4992000")
+            Quit:$$$ISERR(subStat) subStat
+        }
+        
+        quit stat
+    }
+
+    /// Creates a specific type of subordinate record for the given class name.
+    /// @param obj The parent object to which the child object belongs.
+    /// @param className The class name of the child object to create.
+    /// @param ordnerart The type of folder (optional).
+    /// @return %Status indicating the success or failure of the method execution.
+    ClassMethod CreateFolderType(
+        obj As Filero.Builder.UserObject,
+        className As Filero.DataType.String,
+        ordnerart As Filero.DataType.String = "") As Filero.DataType.Status
+    {
+        // Check if any child exists. If yes then it quits the code 
+        #dim childrenOfChild as Filero.DataType.ListOfObjects = obj.getChildren(className)
+        quit:('$ISOBJECT(childrenOfChild)) $$$OK
+        quit:(childrenOfChild.Count() > 0) $$$OK
+        
+        #dim stat as Filero.DataType.Status = $$$OK 
+        
+        // Create child object if it doesn't exist
+        #dim childObj as Filero.Builder.UserObject = ##class(Filero.Builder.UserObject).NewUserObject(className, .obj,"",.stat)
+        quit:($$$ISERR(stat)) stat
+        
+        // Set ordnerart if specified
+        if (ordnerart'="") 
+        {
+            // Assuming OrdnerArt is a classlink property for OrdnerBuha
+            if ((className = "OrdnerBuha") || (className = "Ordner")) 
+            {
+                #dim ordnerartObj as Filero.Builder.UserObject = ##class(Filero.Builder.UserObject).%OpenId(ordnerart) // OrdnerArt linked to OrdnerArt class
+                // Set OrdnerArt link property
+                do childObj.setOrdnerart(ordnerartObj) 
+            } 
+            elseif ((className = "OrdnerArg") || (className = "OrdnerErg")) 
+            {
+                do childObj.OrdnerArt(ordnerart)  
+            }
+        }
+        
+        #dim jahr as Filero.DataType.Integer = $EXTRACT(className, *, -4) //last 4 numbers
+        do childObj.setJahr(jahr)
+        
+        // Save child object
+        set stat = childObj.saveObject()
+        quit stat
+    }
+
+}
