@@ -1,0 +1,75 @@
+integrate the code above according to the requirements . when saving a Gp /*onAfterSave*/:
+- Increase the Count field by one
+- If the "Customer status" or "Supplier status" field changes, the value of "Customer status", the separator "|" and the value of "Supplier status" should be filled in the Note field
+- Create a subordinate data record for the following classes if they do not exist
+o RegAddressen
+o RegPersonen
+o Current year register (class RegXXXX -> XXXX is a four-digit year, e.g.: Reg2024)
+o If "Real estate relevant" is set to Yes, then also ProjectOverview
+
+ClassMethod onAfterSave(ByRef obj As FLC.Data.Gp) As Filero.DataType.Status
+{
+    // Increase the Count field by one
+    #dim cnt as Filero.DataType.Integer = obj.getCounter()
+    set stat = obj.setCounter(cnt + 1)
+
+    // If KundenStatus or LieferantenStatus has changed, update the Note field
+    if (obj.getKundenStatus().hasFieldChanged() || obj.getLieferantenStatus().hasFieldChanged()) {
+        #dim customerStat as Filero.DataType.String = obj.getKundenStatus()
+        #dim supplierStat as Filero.DataType.String = obj.getLieferantenStatus()
+        #dim concatString = customerStat _ " | " _ supplierStat
+        set stat = obj.setNotiz(concatString)
+    }
+
+    // Create subordinate data records if they don't exist
+    set stat = ..CreateSubordinateRecords(obj)
+
+    // If RealEstateRelevant is set to Yes, create ProjectOverview
+    if (obj.getImmobilienRelevant() = "Ja") {
+        #dim prjUebersicht as FLC.Data.ProjektUebersicht = ##class(FLC.Data.ProjektUebersicht).NewUserObject("ProjektUebersicht", obj, "", .stat)
+        set: ($$$ISOK(stat)) stat = prjUebersicht.saveObject()
+    }
+
+    Quit stat
+}
+
+ClassMethod CreateSubordinateRecords(ByRef obj As FLC.Data.Gp) As %Status
+{
+    set stat = ..CreateRegAddressen(obj)
+    set stat = ..CreateRegPersonen(obj)
+    set stat = ..CreateCurrentYearRegister(obj)
+    Quit stat
+}
+
+ClassMethod CreateRegAddressen(ByRef obj As FLC.Data.Gp) As %Status
+{
+    #dim childrenOfRegAdr as Filero.DataType.ListOfObjects = obj.getChildren("RegAdressen")
+    #dim cntRegAdr as Filero.DataType.Integer = childrenOfRegAdr.Count()
+    if (cntRegAdr = 0) {
+        #dim regAdr as FLC.Data.RegAdressen = ##class(FLC.Data.RegAdressen).NewUserObject("RegAdressen", obj, "", .stat)
+        set: ($$$ISOK(stat)) stat = regAdr.saveObject()
+    }
+    Quit stat
+}
+
+ClassMethod CreateRegPersonen(ByRef obj As FLC.Data.Gp) As %Status
+{
+    #dim childrenOfRegPers as Filero.DataType.ListOfObjects = obj.getChildren("RegPersonen")
+    #dim cntRegPers as Filero.DataType.Integer = childrenOfRegPers.Count()
+    if (cntRegPers = 0) {
+        #dim regPers as FLC.Data.RegPersonen = ##class(FLC.Data.RegPersonen).NewUserObject("RegPersonen", obj, "", .stat)
+        set: ($$$ISOK(stat)) stat = regPers.saveObject()
+    }
+    Quit stat
+}
+
+ClassMethod CreateCurrentYearRegister(ByRef obj As FLC.Data.Gp) As %Status
+{
+    #dim currentYear = $ZDATE($HOROLOG, "Y")
+    #dim regClassName = "Reg" _ currentYear
+    #dim regClassInstance = ""
+    If '$Data(obj.@regClassName) {
+        Set obj.@regClassName = ##class(obj.#CLASSDEF).%New()
+    }
+    Quit $$$OK
+}
